@@ -18,8 +18,6 @@
  */
 package joshua.decoder.hypergraph;
 
-import static java.util.Collections.emptyList;
-
 import java.util.ArrayList;
 import java.util.List;
 

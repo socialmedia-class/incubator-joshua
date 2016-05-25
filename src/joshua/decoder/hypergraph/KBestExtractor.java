@@ -18,9 +18,6 @@
  */
 package joshua.decoder.hypergraph;
 
-import java.io.BufferedWriter;
-import java.io.IOException;
-import java.io.OutputStreamWriter;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.ArrayList;
@@ -38,8 +35,6 @@ import joshua.decoder.ff.fragmentlm.Tree;
 import joshua.decoder.ff.state_maintenance.DPState;
 import joshua.decoder.ff.tm.Rule;
 import joshua.decoder.segment_file.Sentence;
-import joshua.decoder.segment_file.Token;
-import joshua.util.FormatUtils;
 
 /**
  * This class implements lazy k-best extraction on a hyper-graph.

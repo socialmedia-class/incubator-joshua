@@ -182,9 +182,6 @@ public class Decoder {
     /* Where to put translated sentences. */
     private final Translations response;
     
-    /* Sometimes we need to communicate with the client even when we didn't get a new sentence
-     * (e.g., metadata)
-     */
     private OutputStream out;
     
     RequestParallelizer(TranslationRequestStream request, Translations response) {
@@ -481,11 +478,12 @@ public class Decoder {
         String text;
         if (config.moses) {
           KBestExtractor extractor = new KBestExtractor(sentence, hg, featureFunctions, weights, false, config);
+          
           final String mosesFormat = "%i ||| %s ||| %f ||| %c"; 
           
           int k = 1;
           for (DerivationState derivation: extractor) {
-            if (k > config.topN)
+            if (k > config.topN || derivation == null)
               break;
             
             TranslationFactory factory = new TranslationFactory(sentence, derivation, config);
@@ -691,7 +689,7 @@ public class Decoder {
           System.err
               .println("You might be using an old version of the config file that is no longer supported");
           System.err
-              .println("Check joshua-decoder.org or email joshua_support@googlegroups.com for help");
+              .println("Check joshua-decoder.org or email user@joshua.incubator.apache.org for help");
           System.exit(17);
         }
 
@@ -699,7 +697,7 @@ public class Decoder {
       }
 
       Decoder.LOG(1, String.format("Read %d weights (%d of them dense)", weights.size(),
-      DENSE_FEATURE_NAMES.size()));
+          DENSE_FEATURE_NAMES.size()));
 
       // Do this before loading the grammars and the LM.
       this.featureFunctions = new ArrayList<FeatureFunction>();

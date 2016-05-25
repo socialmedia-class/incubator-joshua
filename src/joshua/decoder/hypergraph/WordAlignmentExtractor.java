@@ -18,9 +18,6 @@
  */
 package joshua.decoder.hypergraph;
 
-import static java.util.Collections.emptyList;
-
-import java.util.List;
 import java.util.Stack;
 
 import joshua.decoder.ff.tm.Rule;
