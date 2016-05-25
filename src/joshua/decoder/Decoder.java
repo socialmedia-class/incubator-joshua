@@ -465,7 +465,7 @@ public class Decoder {
       Sentence sentence = hg.sentence;
       
       if (config.input_type == INPUT_TYPE.json || config.server_type == SERVER_TYPE.HTTP) {
-        KBestExtractor extractor = new KBestExtractor(sentence, hg, featureFunctions, weights, false, config);
+        KBestExtractor extractor = new KBestExtractor(sentence, hg, featureFunctions, weights, false, config, config.topN);
         JSONMessage message = JSONMessage.buildMessage(sentence, extractor, featureFunctions, config);
         out.write(message.toString().getBytes());
         
@@ -476,47 +476,45 @@ public class Decoder {
          * Moses expects the simple translation on STDOUT and the n-best list in a file with a fixed
          * format.
          */
-        String text;
+        String bestOutput;
         if (config.moses) {
-          KBestExtractor extractor = new KBestExtractor(sentence, hg, featureFunctions, weights, false, config);
+          KBestExtractor extractor = new KBestExtractor(sentence, hg, featureFunctions, weights, false, config, config.topN);
           
           final String mosesFormat = "%i ||| %s ||| %f ||| %c"; 
           
-          int k = 1;
+          boolean firstPass = true;
           for (DerivationState derivation: extractor) {
-            if (k > config.topN || derivation == null)
-              break;
-            
 
             TranslationBuilder factory = new TranslationBuilder(sentence, derivation, featureFunctions, config);
             Translation translation = factory.formattedTranslation(mosesFormat).translation();
-            text = translation.getFormattedTranslation().replaceAll("=",  "= ");
+            String text = translation.getFormattedTranslation().replaceAll("=",  "= ");
             // Write the complete formatted string to STDOUT
             if (config.n_best_file != null)
               nbest_out.write(text + "\n");
-            
-            k++;
-          }
+
+            if (firstPass) {
+              bestOutput = translation.toString();
+              firstPass = false;
+            }
+          } 
         }
 
-        KBestExtractor extractor = new KBestExtractor(sentence, hg, featureFunctions, weights, false, config);
-        int k = 1;
+        KBestExtractor extractor = new KBestExtractor(sentence, hg, featureFunctions, weights, false, config, config.topN);
+        boolean firstPass = true;
         for (DerivationState derivation: extractor) {
-          if (k > config.topN || derivation == null)
-            break;
 
           Translation t = new TranslationBuilder(sentence, derivation, featureFunctions, config)
               .formattedTranslation(config.outputFormat)
               .translation();
           
-          if (k == 1)
+          if (firstPass) {
             Decoder.LOG(1, String.format("Translation %d: %.3f %s", sentence.id(), t.score(), t.toString()));
+            firstPass = false;
+          }
 
           String bestString = t.getFormattedTranslation();
           out.write(bestString.getBytes());
           out.write("\n".getBytes());
-          
-          k++;
         }
       }
       out.flush();
@@ -532,6 +530,7 @@ public class Decoder {
           break;
         }
       }
+
     }
     
     if (config.n_best_file != null)

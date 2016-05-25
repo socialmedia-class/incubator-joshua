@@ -114,6 +114,7 @@ public class KBestExtractor implements Iterator<DerivationState>, Iterable<Deriv
   private HyperGraph hyperGraph;
   private DerivationState nextDerivation = null;
   private int derivationCounter;
+  private int maxDerivations;
 
   public KBestExtractor(
       Sentence sentence,
@@ -121,7 +122,8 @@ public class KBestExtractor implements Iterator<DerivationState>, Iterable<Deriv
       List<FeatureFunction> featureFunctions,
       FeatureVector weights,
       boolean isMonolingual,
-      JoshuaConfiguration joshuaConfiguration) {
+      JoshuaConfiguration joshuaConfiguration,
+      int k) {
 
     this.featureFunctions = featureFunctions;
     this.hyperGraph = hyperGraph;
@@ -134,7 +136,8 @@ public class KBestExtractor implements Iterator<DerivationState>, Iterable<Deriv
     
     // initialize the iterator
     this.derivationCounter = 0;
-    this.nextDerivation = getViterbiDerivation();
+    this.nextDerivation = null;
+    this.maxDerivations = k;
   }
 
   /**
@@ -146,12 +149,11 @@ public class KBestExtractor implements Iterator<DerivationState>, Iterable<Deriv
    */
   public DerivationState getViterbiDerivation() {
     
-    /* TODO: this is just a short-cut to get this working. Instead of triggering the k-best extraction,
-     * it would be better to have a shortcut function that can construction a {@link DerivationState object}
-     * from the hypergraph directly, which would be a lot cheaper.
+    /* TODO: the viterbi derivation is often needed, but triggering all the k-best mechanisms
+     * to extract it is expensive. There should be a way to get the 1-best DerivationState object
+     * very quickly, so that we can fit it into this framework. 
      */
-    hasNext();
-    return this.nextDerivation;
+    throw new RuntimeException("Not yet implemented! We need a fast way to get the Viterbi DerivationState!");
   }
 
   
@@ -649,14 +651,16 @@ public class KBestExtractor implements Iterator<DerivationState>, Iterable<Deriv
 
   @Override
   public boolean hasNext() {
-    if (this.nextDerivation != null)
-      return true;
-
-    derivationCounter++;
+    if (this.nextDerivation == null) {
+      this.derivationCounter++;
+      if (this.derivationCounter <= this.maxDerivations) {
+        VirtualNode virtualNode = getVirtualNode(hyperGraph.goalNode);
+        this.nextDerivation = virtualNode.lazyKBestExtractOnNode(this, derivationCounter);
+      }
+      return this.nextDerivation != null;
+    }
     
-    VirtualNode virtualNode = getVirtualNode(hyperGraph.goalNode);
-    this.nextDerivation = virtualNode.lazyKBestExtractOnNode(this, derivationCounter);
-    return this.nextDerivation != null;
+    return true;
   }
 
   @Override
