@@ -209,18 +209,6 @@ public class JoshuaConfiguration {
   public int server_port = 0;
 
   /*
-   * Whether to do forest rescoring. If set to true, the references are expected on STDIN along with
-   * the input sentences in the following format:
-   * 
-   * input sentence ||| ||| reference1 ||| reference2 ...
-   * 
-   * (The second field is reserved for the output sentence for alignment and forced decoding).
-   */
-
-  public boolean rescoreForest = false;
-  public float rescoreForestWeight = 10.0f;
-
-  /*
    * Location of fragment mapping file, which maps flattened SCFG rules to their internal
    * representation.
    */
@@ -563,14 +551,6 @@ public class JoshuaConfiguration {
           } else if (parameter.equals(normalize_key("server-port"))) {
             server_port = Integer.parseInt(fds[1]);
             logger.info(String.format("    server-port: %d", server_port));
-
-          } else if (parameter.equals(normalize_key("rescore-forest"))) {
-            rescoreForest = true;
-            logger.info(String.format("    rescore-forest: %s", rescoreForest));
-
-          } else if (parameter.equals(normalize_key("rescore-forest-weight"))) {
-            rescoreForestWeight = Float.parseFloat(fds[1]);
-            logger.info(String.format("    rescore-forest-weight: %f", rescoreForestWeight));
 
           } else if (parameter.equals(normalize_key("maxlen"))) {
             // reset the maximum length

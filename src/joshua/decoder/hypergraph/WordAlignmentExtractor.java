@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Stack;
 
 import joshua.decoder.ff.tm.Rule;
-import joshua.decoder.hypergraph.KBestExtractor.DerivationState;
 import joshua.decoder.hypergraph.KBestExtractor.DerivationVisitor;
 
 /**
@@ -97,9 +96,9 @@ public class WordAlignmentExtractor implements WalkerFunction, DerivationVisitor
    * Final word alignment without sentence markers
    * or empty list if stack is empty.
    */
-  public List<List<Integer>> getFinalWordAlignments() {
+  public WordAlignmentState getFinalWordAlignments() {
     if (stack.isEmpty()) {
-      return emptyList();
+      return null;
     }
     
     if (stack.size() != 1) {
@@ -108,7 +107,7 @@ public class WordAlignmentExtractor implements WalkerFunction, DerivationVisitor
               "Stack of WordAlignmentExtractor should contain only a single (last) element, but was size %d", stack.size()));
     }
     
-    return stack.peek().toFinalList();
+    return stack.peek();
   }
   
   /**

@@ -24,7 +24,6 @@ import java.util.List;
 
 import joshua.decoder.ff.FeatureFunction;
 import joshua.decoder.ff.FeatureVector;
-import joshua.decoder.hypergraph.KBestExtractor.DerivationState;
 import joshua.decoder.hypergraph.KBestExtractor.DerivationVisitor;
 import joshua.decoder.segment_file.Sentence;
 

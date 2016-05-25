@@ -24,7 +24,6 @@ import static joshua.corpus.Vocabulary.getWords;
 import java.util.Stack;
 
 import joshua.decoder.ff.tm.Rule;
-import joshua.decoder.hypergraph.KBestExtractor.DerivationState;
 import joshua.decoder.hypergraph.KBestExtractor.DerivationVisitor;
 import joshua.util.FormatUtils;
 

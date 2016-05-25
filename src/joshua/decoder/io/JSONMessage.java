@@ -24,7 +24,12 @@ import java.util.List;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
+import joshua.decoder.JoshuaConfiguration;
 import joshua.decoder.Translation;
+import joshua.decoder.TranslationFactory;
+import joshua.decoder.hypergraph.DerivationState;
+import joshua.decoder.hypergraph.KBestExtractor;
+import joshua.decoder.segment_file.Sentence;
 
 public class JSONMessage {
   public Data data = null;
@@ -86,19 +91,25 @@ public class JSONMessage {
     }
   }
 
-  public static JSONMessage buildMessage(Translation translation) {
+  public static JSONMessage buildMessage(Sentence sentence, KBestExtractor extractor, JoshuaConfiguration config) {
     JSONMessage message = new JSONMessage();
-    String[] results = translation.toString().split("\\n");
-    if (results.length > 0) {
-      JSONMessage.TranslationItem item = message.addTranslation(translation.getStructuredTranslation().getTranslationString());
+    
+    final String mosesFormat = "%i ||| %s ||| %f ||| %c"; 
+    
+    int k = 1;
+    for (DerivationState derivation: extractor) {
+      if (k > config.topN)
+        break;
+      
+      TranslationFactory factory = new TranslationFactory(sentence, derivation, config);
+      Translation translation = factory.formattedTranslation(mosesFormat).translation();
 
-      for (String result: results) {
-        String[] tokens = result.split(" \\|\\|\\| ");
-        String rawResult = tokens[1];
-        float score = Float.parseFloat(tokens[3]);
-        item.addHypothesis(rawResult, score);
-      }
+      JSONMessage.TranslationItem item = message.addTranslation(translation.toString());
+      item.addHypothesis(translation.toString(), translation.score());
+      
+      k++;
     }
+
     return message;
   }
   

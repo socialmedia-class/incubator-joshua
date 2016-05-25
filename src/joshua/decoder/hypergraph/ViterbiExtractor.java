@@ -109,9 +109,9 @@ public class ViterbiExtractor {
   /**
    * Returns the Viterbi Word Alignments as list of lists (target-side).
    */
-  public static List<List<Integer>> getViterbiWordAlignmentList(final HyperGraph hg) {
+  public static WordAlignmentState getViterbiWordAlignmentList(final HyperGraph hg) {
     if (hg == null)
-      return emptyList();
+      return null;
     
     final WordAlignmentExtractor wordAlignmentWalker = new WordAlignmentExtractor();
     viterbiWalk(hg.goalNode, wordAlignmentWalker);

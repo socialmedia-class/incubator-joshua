@@ -27,6 +27,7 @@ import joshua.decoder.chart_parser.Chart;
 import joshua.decoder.ff.FeatureFunction;
 import joshua.decoder.ff.FeatureVector;
 import joshua.decoder.ff.SourceDependentFF;
+import joshua.decoder.ff.lm.StateMinimizingLanguageModel;
 import joshua.decoder.ff.tm.Grammar;
 import joshua.decoder.hypergraph.ForestWalker;
 import joshua.decoder.hypergraph.GrammarBuilderWalkerFunction;
@@ -92,7 +93,7 @@ public class DecoderThread extends Thread {
    * 
    * @param sentence The sentence to be translated.
    */
-  public Translation translate(Sentence sentence) {
+  public HyperGraph translate(Sentence sentence) {
 
     Decoder.LOG(1, "Input " + sentence.id() + ", " + sentence.fullSource());
 
@@ -102,7 +103,7 @@ public class DecoderThread extends Thread {
     // skip blank sentences
     if (sentence.isEmpty()) {
       Decoder.LOG(1, "Translation " + sentence.id() + ": Translation took 0 seconds");
-      return new Translation(sentence, null, featureFunctions, joshuaConfiguration);
+      return null;
     }
     
     long startTime = System.currentTimeMillis();
@@ -148,9 +149,21 @@ public class DecoderThread extends Thread {
     Decoder.LOG(1, String.format("Input %d: Memory used is %.1f MB", sentence.id(), (Runtime
         .getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / 1000000.0));
 
+     /*
+     * KenLM hack. If using KenLMFF, we need to tell KenLM to delete the pool used to create chart
+     * objects for this sentence.
+     */
+    // TODO: make sure this works here
+    for (FeatureFunction feature : featureFunctions) {
+      if (feature instanceof StateMinimizingLanguageModel) {
+        ((StateMinimizingLanguageModel) feature).destroyPool(sentence.id());
+        break;
+      }
+    }
+    
     /* Return the translation unless we're doing synchronous parsing. */
     if (!joshuaConfiguration.parse || hypergraph == null) {
-      return new Translation(sentence, hypergraph, featureFunctions, joshuaConfiguration);
+      return hypergraph;
     }
 
     /*****************************************************************************************/
@@ -186,7 +199,7 @@ public class DecoderThread extends Thread {
     logger.info(String.format("Memory used after sentence %d is %.1f MB", sentence.id(), (Runtime
         .getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / 1000000.0));
 
-    return new Translation(sentence, englishParse, featureFunctions, joshuaConfiguration); // or do something else
+    return englishParse;
   }
 
   private Grammar getGrammarFromHyperGraph(String goal, HyperGraph hg) {

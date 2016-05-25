@@ -36,6 +36,7 @@ import java.util.concurrent.BlockingQueue;
 
 import com.google.common.base.Strings;
 
+import hep.aida.ref.Test;
 import joshua.corpus.Vocabulary;
 import joshua.decoder.ff.FeatureVector;
 import joshua.decoder.JoshuaConfiguration.INPUT_TYPE;
@@ -50,6 +51,9 @@ import joshua.decoder.ff.tm.Trie;
 import joshua.decoder.ff.tm.format.HieroFormatReader;
 import joshua.decoder.ff.tm.hash_based.MemoryBasedBatchGrammar;
 import joshua.decoder.ff.tm.packed.PackedGrammar;
+import joshua.decoder.hypergraph.DerivationState;
+import joshua.decoder.hypergraph.HyperGraph;
+import joshua.decoder.hypergraph.KBestExtractor;
 import joshua.decoder.io.JSONMessage;
 import joshua.decoder.io.TranslationRequestStream;
 import joshua.decoder.phrase.PhraseTable;
@@ -86,10 +90,10 @@ import joshua.util.io.LineReader;
  */
 public class Decoder {
 
-  private final JoshuaConfiguration joshuaConfiguration;
+  private final JoshuaConfiguration config;
 
   public JoshuaConfiguration getJoshuaConfiguration() {
-    return joshuaConfiguration;
+    return config;
   }
 
   /*
@@ -141,10 +145,10 @@ public class Decoder {
    * testing.
    */
   private Decoder(JoshuaConfiguration joshuaConfiguration) {
-    this.joshuaConfiguration = joshuaConfiguration;
+    this.config = joshuaConfiguration;
     this.grammars = new ArrayList<Grammar>();
     this.threadPool = new ArrayBlockingQueue<DecoderThread>(
-        this.joshuaConfiguration.num_parallel_decoders, true);
+        this.config.num_parallel_decoders, true);
     this.customPhraseTable = null;
   }
 
@@ -183,7 +187,7 @@ public class Decoder {
      */
     private OutputStream out;
     
-    RequestParallelizer(TranslationRequestStream request, Translations response, OutputStream out) {
+    RequestParallelizer(TranslationRequestStream request, Translations response) {
       this.request = request;
       this.response = response;
       this.out = out;
@@ -309,7 +313,7 @@ public class Decoder {
         }
 
         // Search for the rule in the trie
-        int nt_i = Vocabulary.id(joshuaConfiguration.default_non_terminal);
+        int nt_i = Vocabulary.id(config.default_non_terminal);
         Trie trie = customPhraseTable.getTrieRoot().match(nt_i);
 
         for (String word: tokens[0].split("\\s+")) {
@@ -414,8 +418,8 @@ public class Decoder {
        * corresponding Translations object, and return the thread to the pool.
        */
       try {
-        Translation translation = decoderThread.translate(this.sentence);
-        translations.record(translation);
+        HyperGraph hg = decoderThread.translate(this.sentence);
+        translations.record(hg);
 
         /*
          * This is crucial! It's what makes the thread available for the next sentence to be
@@ -444,21 +448,27 @@ public class Decoder {
   public void decodeAll(TranslationRequestStream request, OutputStream out) throws IOException {
     Translations translations = new Translations(request);
 
-    /* Start a thread to handle requests on the input stream */
-    new RequestParallelizer(request, translations, out).start();
+    /* Start a thread to handle requests on the input stream. This thread will continually
+     * request individual DecoderThreads from the pool until all of the input segments have been
+     * translated. It returns them *in order* through an iterator interface as they become available.
+     */ 
+    new RequestParallelizer(request, translations).start();
     
     // Create the n-best output stream
     FileWriter nbest_out = null;
-    if (joshuaConfiguration.n_best_file != null)
-      nbest_out = new FileWriter(joshuaConfiguration.n_best_file);
+    if (config.n_best_file != null)
+      nbest_out = new FileWriter(config.n_best_file);
     
     for (;;) {
-      Translation translation = translations.next();
-      if (translation == null)
+      HyperGraph hg = translations.next();
+      if (hg == null)
         break;
 
-      if (joshuaConfiguration.input_type == INPUT_TYPE.json || joshuaConfiguration.server_type == SERVER_TYPE.HTTP) {
-        JSONMessage message = JSONMessage.buildMessage(translation);
+      Sentence sentence = hg.sentence;
+      
+      if (config.input_type == INPUT_TYPE.json || config.server_type == SERVER_TYPE.HTTP) {
+        KBestExtractor extractor = new KBestExtractor(sentence, hg, featureFunctions, weights, false, config);
+        JSONMessage message = JSONMessage.buildMessage(sentence, extractor, config);
         out.write(message.toString().getBytes());
         
       } else {
@@ -469,27 +479,42 @@ public class Decoder {
          * format.
          */
         String text;
-        if (joshuaConfiguration.moses) {
-          text = translation.toString().replaceAll("=", "= ");
-          // Write the complete formatted string to STDOUT
-          if (joshuaConfiguration.n_best_file != null)
-            nbest_out.write(text);
+        if (config.moses) {
+          KBestExtractor extractor = new KBestExtractor(sentence, hg, featureFunctions, weights, false, config);
+          final String mosesFormat = "%i ||| %s ||| %f ||| %c"; 
           
-          // Extract just the translation and output that to STDOUT
-          text = text.substring(0,  text.indexOf('\n'));
-          String[] fields = text.split(" \\|\\|\\| ");
-          text = fields[1] + "\n";
-          
-        } else {
-          text = translation.toString();
+          int k = 1;
+          for (DerivationState derivation: extractor) {
+            if (k > config.topN)
+              break;
+            
+            TranslationFactory factory = new TranslationFactory(sentence, derivation, config);
+            Translation translation = factory.formattedTranslation(mosesFormat).translation();
+            text = translation.getFormattedTranslation().replaceAll("=",  "= ");
+            // Write the complete formatted string to STDOUT
+            if (config.n_best_file != null)
+              nbest_out.write(text + "\n");
+            
+            k++;
+          }
         }
 
-        out.write(text.getBytes());
+        KBestExtractor extractor = new KBestExtractor(sentence, hg, featureFunctions, weights, false, config);
+        DerivationState viterbi = extractor.getViterbiDerivation();
+        Translation best = new TranslationFactory(sentence, viterbi, config)
+            .formattedTranslation(config.outputFormat)
+              .translation();
+        
+        Decoder.LOG(1, String.format("Translation %d: %.3f %s", sentence.id(), best.score(), best.toString()));
+
+        String bestString = best.getFormattedTranslation();
+        out.write(bestString.getBytes());
+        out.write("\n".getBytes());
       }
       out.flush();
     }
     
-    if (joshuaConfiguration.n_best_file != null)
+    if (config.n_best_file != null)
       nbest_out.close();
   }
 
@@ -500,15 +525,15 @@ public class Decoder {
    * @param sentence
    * @return The translated sentence
    */
-  public Translation decode(Sentence sentence) {
+  public HyperGraph decode(Sentence sentence) {
     // Get a thread.
 
     try {
       DecoderThread thread = threadPool.take();
-      Translation translation = thread.translate(sentence);
+      HyperGraph translation = thread.translate(sentence);
       threadPool.put(thread);
-
       return translation;
+
 
     } catch (InterruptedException e) {
       e.printStackTrace();
@@ -614,7 +639,7 @@ public class Decoder {
    * @return the feature in Moses format
    */
   private String mosesize(String feature) {
-    if (joshuaConfiguration.moses) {
+    if (config.moses) {
       if (feature.startsWith("tm_") || feature.startsWith("lm_"))
         return feature.replace("_", "-");
     }
@@ -636,26 +661,26 @@ public class Decoder {
       /* Weights can be listed in a separate file (denoted by parameter "weights-file") or directly
        * in the Joshua config file. Config file values take precedent.
        */
-      this.readWeights(joshuaConfiguration.weights_file);
+      this.readWeights(config.weights_file);
       
       
       /* Add command-line-passed weights to the weights array for processing below */
-      if (!Strings.isNullOrEmpty(joshuaConfiguration.weight_overwrite)) {
-        String[] tokens = joshuaConfiguration.weight_overwrite.split("\\s+");
+      if (!Strings.isNullOrEmpty(config.weight_overwrite)) {
+        String[] tokens = config.weight_overwrite.split("\\s+");
         for (int i = 0; i < tokens.length; i += 2) {
           String feature = tokens[i];
           float value = Float.parseFloat(tokens[i+1]);
           
-          if (joshuaConfiguration.moses)
+          if (config.moses)
             feature = demoses(feature);
           
-          joshuaConfiguration.weights.add(String.format("%s %s", feature, tokens[i+1]));
+          config.weights.add(String.format("%s %s", feature, tokens[i+1]));
           Decoder.LOG(1, String.format("COMMAND LINE WEIGHT: %s -> %.3f", feature, value));
         }
       }
 
       /* Read the weights found in the config file */
-      for (String pairStr: joshuaConfiguration.weights) {
+      for (String pairStr: config.weights) {
         String pair[] = pairStr.split("\\s+");
 
         /* Sanity check for old-style unsupported feature invocations. */
@@ -690,10 +715,10 @@ public class Decoder {
       this.initializeFeatureFunctions();
 
       // This is mostly for compatibility with the Moses tuning script
-      if (joshuaConfiguration.show_weights_and_quit) {
+      if (config.show_weights_and_quit) {
         for (int i = 0; i < DENSE_FEATURE_NAMES.size(); i++) {
           String name = DENSE_FEATURE_NAMES.get(i);
-          if (joshuaConfiguration.moses) 
+          if (config.moses) 
             System.out.println(String.format("%s= %.5f", mosesize(name), weights.getDense(i)));
           else
             System.out.println(String.format("%s %.5f", name, weights.getDense(i)));
@@ -702,7 +727,7 @@ public class Decoder {
       }
       
       // Sort the TM grammars (needed to do cube pruning)
-      if (joshuaConfiguration.amortized_sorting) {
+      if (config.amortized_sorting) {
         Decoder.LOG(1, "Grammar sorting happening lazily on-demand.");
       } else {
         long pre_sort_time = System.currentTimeMillis();
@@ -714,9 +739,9 @@ public class Decoder {
       }
 
       // Create the threads
-      for (int i = 0; i < joshuaConfiguration.num_parallel_decoders; i++) {
+      for (int i = 0; i < config.num_parallel_decoders; i++) {
         this.threadPool.put(new DecoderThread(this.grammars, Decoder.weights,
-            this.featureFunctions, joshuaConfiguration));
+            this.featureFunctions, config));
       }
 
     } catch (IOException e) {
@@ -738,13 +763,13 @@ public class Decoder {
    */
   private void initializeTranslationGrammars() throws IOException {
 
-    if (joshuaConfiguration.tms.size() > 0) {
+    if (config.tms.size() > 0) {
 
       // collect packedGrammars to check if they use a shared vocabulary
       final List<PackedGrammar> packed_grammars = new ArrayList<>();
 
       // tm = {thrax/hiero,packed,samt,moses} OWNER LIMIT FILE
-      for (String tmLine : joshuaConfiguration.tms) {
+      for (String tmLine : config.tms) {
 
         String type = tmLine.substring(0,  tmLine.indexOf(' '));
         String[] args = tmLine.substring(tmLine.indexOf(' ')).trim().split("\\s+");
@@ -758,7 +783,7 @@ public class Decoder {
         if (! type.equals("moses") && ! type.equals("phrase")) {
           if (new File(path).isDirectory()) {
             try {
-              PackedGrammar packed_grammar = new PackedGrammar(path, span_limit, owner, type, joshuaConfiguration);
+              PackedGrammar packed_grammar = new PackedGrammar(path, span_limit, owner, type, config);
               packed_grammars.add(packed_grammar);
               grammar = packed_grammar;
             } catch (FileNotFoundException e) {
@@ -769,7 +794,7 @@ public class Decoder {
           } else {
             // thrax, hiero, samt
             grammar = new MemoryBasedBatchGrammar(type, path, owner,
-                joshuaConfiguration.default_non_terminal, span_limit, joshuaConfiguration);
+                config.default_non_terminal, span_limit, config);
           }
           
         } else {
@@ -778,8 +803,8 @@ public class Decoder {
               ? Integer.parseInt(parsedArgs.get("max-source-len"))
               : -1;
 
-          joshuaConfiguration.search_algorithm = "stack";
-          grammar = new PhraseTable(path, owner, type, joshuaConfiguration, maxSourceLen);
+          config.search_algorithm = "stack";
+          grammar = new PhraseTable(path, owner, type, config, maxSourceLen);
         }
 
         this.grammars.add(grammar);
@@ -789,25 +814,25 @@ public class Decoder {
 
     } else {
       Decoder.LOG(1, "* WARNING: no grammars supplied!  Supplying dummy glue grammar.");
-      MemoryBasedBatchGrammar glueGrammar = new MemoryBasedBatchGrammar("glue", joshuaConfiguration);
+      MemoryBasedBatchGrammar glueGrammar = new MemoryBasedBatchGrammar("glue", config);
       glueGrammar.setSpanLimit(-1);
       glueGrammar.addGlueRules(featureFunctions);
       this.grammars.add(glueGrammar);
     }
     
     /* Add the grammar for custom entries */
-    this.customPhraseTable = new PhraseTable(null, "custom", "phrase", joshuaConfiguration, 0);
+    this.customPhraseTable = new PhraseTable(null, "custom", "phrase", config, 0);
     this.grammars.add(this.customPhraseTable);
     
     /* Create an epsilon-deleting grammar */
-    if (joshuaConfiguration.lattice_decoding) {
+    if (config.lattice_decoding) {
       Decoder.LOG(1, "Creating an epsilon-deleting grammar");
-      MemoryBasedBatchGrammar latticeGrammar = new MemoryBasedBatchGrammar("lattice", joshuaConfiguration);
+      MemoryBasedBatchGrammar latticeGrammar = new MemoryBasedBatchGrammar("lattice", config);
       latticeGrammar.setSpanLimit(-1);
       HieroFormatReader reader = new HieroFormatReader();
 
-      String goalNT = FormatUtils.cleanNonTerminal(joshuaConfiguration.goal_symbol);
-      String defaultNT = FormatUtils.cleanNonTerminal(joshuaConfiguration.default_non_terminal);
+      String goalNT = FormatUtils.cleanNonTerminal(config.goal_symbol);
+      String defaultNT = FormatUtils.cleanNonTerminal(config.default_non_terminal);
 
       String ruleString = String.format("[%s] ||| [%s,1] <eps> ||| [%s,1] ||| ", goalNT, goalNT, defaultNT,
           goalNT, defaultNT);
@@ -826,7 +851,7 @@ public class Decoder {
       String owner = Vocabulary.word(grammar.getOwner());
       if (! ownersSeen.contains(owner)) {
         this.featureFunctions.add(new PhraseModel(weights, new String[] { "tm", "-owner", owner },
-            joshuaConfiguration, grammar));
+            config, grammar));
         ownersSeen.add(owner);
       }
     }
@@ -882,7 +907,7 @@ public class Decoder {
         Float value = Float.parseFloat(tokens[1]);
         
         // Kludge for compatibility with Moses tuners
-        if (joshuaConfiguration.moses) {
+        if (config.moses) {
           feature = demoses(feature);
         }
 
@@ -925,7 +950,7 @@ public class Decoder {
    */
   private void initializeFeatureFunctions() throws IOException {
 
-    for (String featureLine : joshuaConfiguration.features) {
+    for (String featureLine : config.features) {
       // feature-function = NAME args
       // 1. create new class named NAME, pass it config, weights, and the args
 
@@ -938,7 +963,7 @@ public class Decoder {
         Class<?> clas = getClass(featureName);
         Constructor<?> constructor = clas.getConstructor(FeatureVector.class,
             String[].class, JoshuaConfiguration.class);
-        this.featureFunctions.add((FeatureFunction) constructor.newInstance(weights, fields, joshuaConfiguration));
+        this.featureFunctions.add((FeatureFunction) constructor.newInstance(weights, fields, config));
       } catch (Exception e) {
         e.printStackTrace();
         System.err.println("* FATAL: could not find a feature '" + featureName + "'");

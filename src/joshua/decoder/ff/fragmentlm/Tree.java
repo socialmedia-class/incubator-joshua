@@ -26,9 +26,9 @@ import java.util.*;
 import joshua.corpus.Vocabulary;
 import joshua.decoder.ff.fragmentlm.Trees.PennTreeReader;
 import joshua.decoder.ff.tm.Rule;
+import joshua.decoder.hypergraph.DerivationState;
 import joshua.decoder.hypergraph.HGNode;
 import joshua.decoder.hypergraph.HyperEdge;
-import joshua.decoder.hypergraph.KBestExtractor.DerivationState;
 import joshua.util.io.LineReader;
 
 /**

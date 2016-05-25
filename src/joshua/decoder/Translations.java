@@ -19,6 +19,8 @@
 package joshua.decoder;
 
 import java.util.LinkedList;
+
+import joshua.decoder.hypergraph.HyperGraph;
 import joshua.decoder.io.TranslationRequestStream;
 
 /**
@@ -44,13 +46,13 @@ public class Translations {
   private int currentID = 0;
 
   /* The set of translated sentences. */
-  private LinkedList<Translation> translations = null;
+  private LinkedList<HyperGraph> translations = null;
 
   private boolean spent = false;
 
   public Translations(TranslationRequestStream request) {
     this.request = request;
-    this.translations = new LinkedList<Translation>();
+    this.translations = new LinkedList<HyperGraph>();
   }
 
   /**
@@ -75,21 +77,21 @@ public class Translations {
    * 
    * @param translation
    */
-  public void record(Translation translation) {
+  public void record(HyperGraph hyperGraph) {
     synchronized (this) {
 
       /* Pad the set of translations with nulls to accommodate the new translation. */
-      int offset = translation.id() - currentID;
+      int offset = hyperGraph.sentID() - currentID;
       while (offset >= translations.size())
         translations.add(null);
-      translations.set(offset, translation);
+      translations.set(offset, hyperGraph);
 
       /*
        * If the id of the current translation is at the head of the list (first element), then we
        * have the next Translation to be return, and we should notify anyone waiting on next(),
        * which will then remove the item and increment the currentID.
        */
-      if (translation.id() == currentID) {
+      if (hyperGraph.sentID() == currentID) {
         this.notify();
       }
     }
@@ -99,7 +101,7 @@ public class Translations {
    * Returns the next Translation, blocking if necessary until it's available, since the next
    * Translation might not have been produced yet.
    */
-  public Translation next() {
+  public HyperGraph next() {
     synchronized (this) {
 
       /*
