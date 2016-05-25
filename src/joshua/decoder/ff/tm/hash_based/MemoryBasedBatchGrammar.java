@@ -68,9 +68,6 @@ public class MemoryBasedBatchGrammar extends AbstractGrammar {
 
   private GrammarReader<Rule> modelReader;
 
-  /* Whether the grammar's rules contain regular expressions. */
-  private boolean isRegexpGrammar = false;
-
   // ===============================================================
   // Static Fields
   // ===============================================================
@@ -106,7 +103,6 @@ public class MemoryBasedBatchGrammar extends AbstractGrammar {
     Vocabulary.id(defaultLHSSymbol);
     this.spanLimit = spanLimit;
     this.grammarFile = grammarFile;
-    this.setRegexpGrammar(formatKeyword.equals("regexp"));
 
     // ==== loading grammar
     this.modelReader = createReader(formatKeyword, grammarFile);
@@ -148,12 +144,6 @@ public class MemoryBasedBatchGrammar extends AbstractGrammar {
   @Override
   public int getNumRules() {
     return this.qtyRulesRead;
-  }
-
-  @Override
-  public Rule constructManualRule(int lhs, int[] sourceWords, int[] targetWords,
-      float[] denseScores, int arity) {
-    return null;
   }
 
   /**
@@ -233,21 +223,6 @@ public class MemoryBasedBatchGrammar extends AbstractGrammar {
   }
 
   /**
-   * This returns true if the grammar contains rules that are regular expressions, possibly matching
-   * many different inputs.
-   * 
-   * @return true if the grammar's rules may contain regular expressions.
-   */
-  @Override
-  public boolean isRegexpGrammar() {
-    return this.isRegexpGrammar;
-  }
-
-  public void setRegexpGrammar(boolean value) {
-    this.isRegexpGrammar = value;
-  }
-
-  /***
    * Takes an input word and creates an OOV rule in the current grammar for that word.
    * 
    * @param sourceWord

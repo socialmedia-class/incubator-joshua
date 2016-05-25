@@ -19,7 +19,6 @@
 package joshua.decoder.chart_parser;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -91,9 +90,6 @@ class DotChart {
   /* Represents the input sentence being translated. */
   private final Lattice<Token> input;
 
-  /* If enabled, rule terminals are treated as regular expressions. */
-  private final boolean regexpMatching;
-
   // ===============================================================
   // Static fields
   // ===============================================================
@@ -119,7 +115,7 @@ class DotChart {
 
 
 
-  public DotChart(Lattice<Token> input, Grammar grammar, Chart chart, boolean regExpMatching) {
+  public DotChart(Lattice<Token> input, Grammar grammar, Chart chart) {
 
     this.dotChart = chart;
     this.pGrammar = grammar;
@@ -127,7 +123,6 @@ class DotChart {
     this.sentLen = input.size();
 
     this.dotcells = new ChartSpan<DotCell>(sentLen, null);
-    this.regexpMatching = regExpMatching;
 
     seed();
   }
@@ -207,22 +202,10 @@ class DotChart {
           // List<Trie> child_tnodes = ruleMatcher.produceMatchingChildTNodesTerminalevel(dotNode,
           // last_word);
 
-          List<Trie> child_tnodes = null;
-
-          if (this.regexpMatching) {
-            child_tnodes = matchAll(dotNode, last_word);
-          } else {
-            Trie child_node = dotNode.trieNode.match(last_word);
-            child_tnodes = Arrays.asList(child_node);
-          }
-
-          if (!(child_tnodes == null || child_tnodes.isEmpty())) {
-            for (Trie child_tnode : child_tnodes) {
-              if (null != child_tnode) {
-                addDotItem(child_tnode, i, j - 1 + arc_len, dotNode.antSuperNodes, null,
-                    dotNode.srcPath.extend(arc));
-              }
-            }
+          Trie child_node = dotNode.trieNode.match(last_word);
+          if (child_node != null) {
+            addDotItem(child_node, i, j - 1 + arc_len, dotNode.antSuperNodes, null,
+                dotNode.srcPath.extend(arc));
           }
         }
       }
@@ -290,39 +273,6 @@ class DotChart {
       }
     }
   }
-
-  /*
-   * We introduced the ability to have regular expressions in rules for matching against terminals.
-   * For example, you could have the rule
-   * 
-   * <pre> [X] ||| l?s herman?s ||| siblings </pre>
-   * 
-   * When this is enabled for a grammar, we need to test against *all* (positive) outgoing arcs of
-   * the grammar trie node to see if any of them match, and then return the whole set. This is quite
-   * expensive, which is why you should only enable regular expressions for small grammars.
-   */
-
-  private ArrayList<Trie> matchAll(DotNode dotNode, int wordID) {
-    ArrayList<Trie> trieList = new ArrayList<>();
-    HashMap<Integer, ? extends Trie> childrenTbl = dotNode.trieNode.getChildren();
-
-    if (childrenTbl != null && wordID >= 0) {
-      // get all the extensions, map to string, check for *, build regexp
-      for (Map.Entry<Integer, ? extends Trie> entry : childrenTbl.entrySet()) {
-        Integer arcID = entry.getKey();
-        if (arcID == wordID) {
-          trieList.add(entry.getValue());
-        } else {
-          String arcWord = Vocabulary.word(arcID);
-          if (Vocabulary.word(wordID).matches(arcWord)) {
-            trieList.add(entry.getValue());
-          }
-        }
-      }
-    }
-    return trieList;
-  }
-
 
   /**
    * Creates a {@link DotNode} and adds it into the {@link DotChart} at the correct place. These
