@@ -514,6 +514,8 @@ public class Decoder {
           String bestString = t.getFormattedTranslation();
           out.write(bestString.getBytes());
           out.write("\n".getBytes());
+          
+          k++;
         }
       }
       out.flush();
