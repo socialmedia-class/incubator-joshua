@@ -26,7 +26,7 @@ curl -s http://localhost:9010/?q=I%20love%20it%20when%20I%20get%20the%20house%20
 
 kill -15 $serverpid 2> /dev/null
 
-diff -u output expected > diff
+diff -u output output.expected > diff
 
 if [[ $? -eq 0 ]]; then
   rm -f server.log output log diff
