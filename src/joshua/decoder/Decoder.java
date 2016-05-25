@@ -510,6 +510,18 @@ public class Decoder {
         out.write("\n".getBytes());
       }
       out.flush();
+    
+      /*
+       * KenLM hack. If using KenLMFF, we need to tell KenLM to delete the pool used to create chart
+       * objects for this sentence.
+       */
+      // TODO: make sure this works here
+      for (FeatureFunction feature : featureFunctions) {
+        if (feature instanceof StateMinimizingLanguageModel) {
+          ((StateMinimizingLanguageModel) feature).destroyPool(hg.sentence.id());
+          break;
+        }
+      }
     }
     
     if (config.n_best_file != null)

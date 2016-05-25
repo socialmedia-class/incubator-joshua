@@ -148,18 +148,6 @@ public class DecoderThread extends Thread {
     Decoder.LOG(1, String.format("Input %d: Translation took %.3f seconds", sentence.id(), seconds));
     Decoder.LOG(1, String.format("Input %d: Memory used is %.1f MB", sentence.id(), (Runtime
         .getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / 1000000.0));
-
-     /*
-     * KenLM hack. If using KenLMFF, we need to tell KenLM to delete the pool used to create chart
-     * objects for this sentence.
-     */
-    // TODO: make sure this works here
-    for (FeatureFunction feature : featureFunctions) {
-      if (feature instanceof StateMinimizingLanguageModel) {
-        ((StateMinimizingLanguageModel) feature).destroyPool(sentence.id());
-        break;
-      }
-    }
     
     /* Return the translation unless we're doing synchronous parsing. */
     if (!joshuaConfiguration.parse || hypergraph == null) {
