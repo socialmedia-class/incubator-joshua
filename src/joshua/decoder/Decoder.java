@@ -45,6 +45,7 @@ import joshua.decoder.ff.FeatureFunction;
 import joshua.decoder.ff.PhraseModel;
 import joshua.decoder.ff.StatefulFF;
 import joshua.decoder.ff.lm.LanguageModelFF;
+import joshua.decoder.ff.lm.StateMinimizingLanguageModel;
 import joshua.decoder.ff.tm.Grammar;
 import joshua.decoder.ff.tm.Rule;
 import joshua.decoder.ff.tm.Trie;
@@ -498,16 +499,22 @@ public class Decoder {
         }
 
         KBestExtractor extractor = new KBestExtractor(sentence, hg, featureFunctions, weights, false, config);
-        DerivationState viterbi = extractor.getViterbiDerivation();
-        Translation best = new TranslationFactory(sentence, viterbi, config)
-            .formattedTranslation(config.outputFormat)
-              .translation();
-        
-        Decoder.LOG(1, String.format("Translation %d: %.3f %s", sentence.id(), best.score(), best.toString()));
+        int k = 1;
+        for (DerivationState derivation: extractor) {
+          if (k > config.topN || derivation == null)
+            break;
 
-        String bestString = best.getFormattedTranslation();
-        out.write(bestString.getBytes());
-        out.write("\n".getBytes());
+          Translation t = new TranslationFactory(sentence, derivation, config)
+              .formattedTranslation(config.outputFormat)
+              .translation();
+          
+          if (k == 1)
+            Decoder.LOG(1, String.format("Translation %d: %.3f %s", sentence.id(), t.score(), t.toString()));
+
+          String bestString = t.getFormattedTranslation();
+          out.write(bestString.getBytes());
+          out.write("\n".getBytes());
+        }
       }
       out.flush();
     
