@@ -1,6 +1,8 @@
 package joshua.decoder;
 
+import joshua.decoder.ff.FeatureFunction;
 import joshua.decoder.ff.FeatureVector;
+import joshua.decoder.ff.lm.StateMinimizingLanguageModel;
 import joshua.decoder.hypergraph.DerivationState;
 import joshua.decoder.hypergraph.KBestExtractor.Side;
 import joshua.decoder.io.DeNormalize;
@@ -10,17 +12,20 @@ import joshua.util.FormatUtils;
 
 import java.util.List;
 
-public class TranslationFactory {
+public class TranslationBuilder {
 
   private final Sentence sentence;
   private final JoshuaConfiguration config;
-
-  private DerivationState derivation;
+  private final DerivationState derivation;
+  private final List<FeatureFunction> featureFunctions;
+  
   private Translation translation;
-
-  public TranslationFactory(Sentence sentence, DerivationState derivation, JoshuaConfiguration config) {
+  
+  public TranslationBuilder(Sentence sentence, DerivationState derivation, 
+      List<FeatureFunction> featureFunctions, JoshuaConfiguration config) {
     this.sentence = sentence;
     this.derivation = derivation;
+    this.featureFunctions = featureFunctions;
     this.config = config;
     
     if (this.derivation != null) {
@@ -30,11 +35,17 @@ public class TranslationFactory {
     }
   }
   
+  /**
+   * Returns the underlying translation object that was being built. Once this is called, it
+   * the TranslationFactory object assumes that the hypergraph is no longer needed.
+   * 
+   * @return the built Translation object
+   */
   public Translation translation() {
     return this.translation;
   }
 
-  public TranslationFactory formattedTranslation(String format) {
+  public TranslationBuilder formattedTranslation(String format) {
 
     // TODO: instead of calling replace() a million times, walk through yourself and find the
     // special characters, and then replace them.  If you do this from the right side the index
@@ -49,12 +60,12 @@ public class TranslationFactory {
         .replace("%i", Integer.toString(sentence.id()));
 
     if (output.contains("%a")) {
-      this.alignments().translation();
+      this.withAlignments().translation();
       output = output.replace("%a", translation.getWordAlignment().toString());
     }
 
     if (config.outputFormat.contains("%f")) {
-      this.features();
+      this.withFeatures();
       final FeatureVector features = translation.getFeatures();
       output = output.replace("%f", config.moses ? features.mosesString() : features.toString());
     }
@@ -79,14 +90,12 @@ public class TranslationFactory {
    * 
    * @return
    */
-  public TranslationFactory features() {
+  public TranslationBuilder withFeatures() {
     translation.setFeatures(derivation.getFeatures());
     return this;
   }
   
-  public TranslationFactory alignments() {
-    // TODO: write this
-    //    this.translation.setAlignments(getViterbiWordAlignmentList(derivation);
+  public TranslationBuilder withAlignments() {
     translation.setWordAlignment(derivation.getWordAlignment());
     return this;
   }

@@ -466,7 +466,7 @@ public class Decoder {
       
       if (config.input_type == INPUT_TYPE.json || config.server_type == SERVER_TYPE.HTTP) {
         KBestExtractor extractor = new KBestExtractor(sentence, hg, featureFunctions, weights, false, config);
-        JSONMessage message = JSONMessage.buildMessage(sentence, extractor, config);
+        JSONMessage message = JSONMessage.buildMessage(sentence, extractor, featureFunctions, config);
         out.write(message.toString().getBytes());
         
       } else {
@@ -487,7 +487,8 @@ public class Decoder {
             if (k > config.topN || derivation == null)
               break;
             
-            TranslationFactory factory = new TranslationFactory(sentence, derivation, config);
+
+            TranslationBuilder factory = new TranslationBuilder(sentence, derivation, featureFunctions, config);
             Translation translation = factory.formattedTranslation(mosesFormat).translation();
             text = translation.getFormattedTranslation().replaceAll("=",  "= ");
             // Write the complete formatted string to STDOUT
@@ -504,7 +505,7 @@ public class Decoder {
           if (k > config.topN || derivation == null)
             break;
 
-          Translation t = new TranslationFactory(sentence, derivation, config)
+          Translation t = new TranslationBuilder(sentence, derivation, featureFunctions, config)
               .formattedTranslation(config.outputFormat)
               .translation();
           

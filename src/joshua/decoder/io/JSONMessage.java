@@ -26,7 +26,8 @@ import com.google.gson.GsonBuilder;
 
 import joshua.decoder.JoshuaConfiguration;
 import joshua.decoder.Translation;
-import joshua.decoder.TranslationFactory;
+import joshua.decoder.TranslationBuilder;
+import joshua.decoder.ff.FeatureFunction;
 import joshua.decoder.hypergraph.DerivationState;
 import joshua.decoder.hypergraph.KBestExtractor;
 import joshua.decoder.segment_file.Sentence;
@@ -91,7 +92,8 @@ public class JSONMessage {
     }
   }
 
-  public static JSONMessage buildMessage(Sentence sentence, KBestExtractor extractor, JoshuaConfiguration config) {
+  public static JSONMessage buildMessage(Sentence sentence, KBestExtractor extractor,
+      List<FeatureFunction> featureFunctions, JoshuaConfiguration config) {
     JSONMessage message = new JSONMessage();
     
     final String mosesFormat = "%i ||| %s ||| %f ||| %c"; 
@@ -101,7 +103,7 @@ public class JSONMessage {
       if (k > config.topN)
         break;
       
-      TranslationFactory factory = new TranslationFactory(sentence, derivation, config);
+      TranslationBuilder factory = new TranslationBuilder(sentence, derivation, featureFunctions, config);
       Translation translation = factory.formattedTranslation(mosesFormat).translation();
 
       JSONMessage.TranslationItem item = message.addTranslation(translation.toString());
