@@ -43,7 +43,9 @@ import org.apache.joshua.decoder.segment_file.Sentence;
 public class StructuredTranslationFactory {
   
   /**
-   * Returns a StructuredTranslation instance from the Viterbi derivation.
+   * Returns a StructuredTranslation instance from the Viterbi derivation. This is used to
+   * obtain the 1-best hypothesis, since traversing the Viterbi derivation directly on the 
+   * hypergraph is considerably faster than instantiating the k-best apparatus.
    * 
    * @param sourceSentence the source sentence
    * @param hypergraph the hypergraph object
@@ -78,6 +80,7 @@ public class StructuredTranslationFactory {
   
   /**
    * Returns a StructuredTranslation instance from a KBest DerivationState. 
+   * 
    * @param sourceSentence Sentence object representing the source.
    * @param derivationState the KBest DerivationState.
    * @return A StructuredTranslation object representing the derivation encoded by derivationState.
