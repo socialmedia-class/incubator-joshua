@@ -18,6 +18,7 @@
  */
 package org.apache.joshua.decoder.ff.tm;
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 
@@ -41,7 +42,7 @@ import cern.colt.Arrays;
  * <em>Note</em>: New classes implementing the <code>Grammar</code> interface should probably
  * inherit from this class, unless a specific sorting technique different from that implemented by
  * this class is required.
- * 
+ *
  * @author Zhifei Li
  * @author Lane Schwartz
  * @author Matt Post post@cs.jhu.edu
@@ -66,17 +67,17 @@ public abstract class AbstractGrammar implements Grammar {
    * The maximum length of a source-side phrase. Mostly used by the phrase-based decoder.
    */
   protected int maxSourcePhraseLength = -1;
-  
+
     /**
    * Returns the longest source phrase read.
-   * 
+   *
    * @return the longest source phrase read (nonterminal + terminal symbols).
    */
   @Override
   public int getMaxSourcePhraseLength() {
     return maxSourcePhraseLength;
   }
-  
+
   @Override
   public OwnerId getOwner() {
     return owner;
@@ -130,10 +131,10 @@ public abstract class AbstractGrammar implements Grammar {
    * <p>
    * This method is called by {@link org.apache.joshua.decoder.ff.tm.AbstractGrammar#sortGrammar(List)}
    * to indicate that the grammar has been sorted.</p>
-   * 
+   *
    * <p>Its scope is protected so that child classes that override <code>sortGrammar</code> will also
    * be able to call this method to indicate that the grammar has been sorted.</p>
-   * 
+   *
    * @param sorted set to true if the grammar is sorted
    */
   protected void setSorted(boolean sorted) {
@@ -146,7 +147,7 @@ public abstract class AbstractGrammar implements Grammar {
    * <p>
    * This method first sorts the rules stored at the provided node, then recursively calls itself on
    * the child nodes of the provided node.
-   * 
+   *
    * @param node Grammar node in the <code>Trie</code> whose rules should be sorted.
    * @param models Feature function models to use during sorting.
    */
@@ -185,17 +186,17 @@ public abstract class AbstractGrammar implements Grammar {
   // write grammar to disk
   public void writeGrammarOnDisk(String file) {
   }
-  
+
   /**
    * Adds OOV rules for all words in the input lattice to the current grammar. Uses addOOVRule() so that
    * sub-grammars can define different types of OOV rules if needed (as is used in {@link PhraseTable}).
-   * 
+   *
    * @param grammar Grammar in the Trie
    * @param inputLattice the lattice representing the input sentence
    * @param featureFunctions a list of feature functions used for scoring
    * @param onlyTrue determine if word is actual OOV.
    */
-  public static void addOOVRules(Grammar grammar, Lattice<Token> inputLattice, 
+  public static void addOOVRules(Grammar grammar, Lattice<Token> inputLattice,
       List<FeatureFunction> featureFunctions, boolean onlyTrue) {
     /*
      * Add OOV rules; This should be called after the manual constraints have
@@ -219,7 +220,7 @@ public abstract class AbstractGrammar implements Grammar {
       }
     }
 
-    for (int sourceWord: words) 
+    for (int sourceWord: words)
       grammar.addOOVRules(sourceWord, featureFunctions);
 
     // Sort all the rules (not much to actually do, this just marks it as sorted)
