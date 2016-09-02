@@ -39,6 +39,9 @@ import java.util.logging.Logger;
  *    year={2016}}
  *
  * @author Wei Xu
+ * 
+ * We used the following commend for the evaluation in the paper: 
+ *    joshua.util.JoshuaEval -txtNrm 0 -cand $systemoutput -ref test.8turkers.tok.turk -rps 8 -v 1 -m SARI 4 test.8turkers.tok.norm
  */
 public class SARI extends EvaluationMetric {
   private static final Logger logger = Logger.getLogger(SARI.class.getName());
